@@ -121,38 +121,46 @@ export default function Home() {
         const online = Object.keys(state);
         setOnlineUsers(online);
         
-        // Track typing from state (check all connections for a user)
         const typing = online.filter(user => {
           const userConnections = state[user] as any[];
           return userConnections.some(conn => conn.isTyping);
         });
         setTypingUsers(typing);
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
-        // Fetch the user for the new message
-        const { data: userData } = await supabase.from('users').select('username').eq('id', payload.new.user_id).single();
-        const newMsg = { ...payload.new, users: { username: userData?.username || 'Unknown' } } as Message;
-        setMessages(prev => [...prev, newMsg]);
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        // Instantly get user from local state instead of doing another database query!
+        const msgUser = users.find(u => u.id === payload.new.user_id);
+        const newMsg = { ...payload.new, users: { username: msgUser?.username || 'Unknown' } } as Message;
+        
+        setMessages(prev => {
+          // If we already added this optimistically, don't duplicate it
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
       })
-      .subscribe(async (status) => {
-        console.log("Realtime status:", status);
+      .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          await channel.track({ isTyping: false });
+          channel.track({ isTyping: false });
         }
       });
 
     channelRef.current = channel;
   };
 
-  const handleTyping = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessageInput(e.target.value);
     
     if (channelRef.current) {
-      await channelRef.current.track({ isTyping: true });
+      // Only send track event if we aren't already typing to avoid WS spam
+      if (!typingTimeoutRef.current) {
+        channelRef.current.track({ isTyping: true });
+      } else {
+        clearTimeout(typingTimeoutRef.current);
+      }
       
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(async () => {
-        await channelRef.current.track({ isTyping: false });
+      typingTimeoutRef.current = setTimeout(() => {
+        if (channelRef.current) channelRef.current.track({ isTyping: false });
+        typingTimeoutRef.current = null;
       }, 2000);
     }
   };
@@ -163,9 +171,30 @@ export default function Home() {
     
     const text = messageInput.trim();
     setMessageInput("");
-    if (channelRef.current) await channelRef.current.track({ isTyping: false });
+    
+    if (channelRef.current) {
+      channelRef.current.track({ isTyping: false });
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    }
 
+    // OPTIMISTIC UI: Show message instantly in the UI
+    const tempId = crypto.randomUUID();
+    const optimisticMsg: Message = {
+      id: tempId,
+      user_id: selectedUser.id,
+      text: text,
+      created_at: new Date().toISOString(),
+      users: { username: selectedUser.username }
+    };
+    
+    setMessages(prev => [...prev, optimisticMsg]);
+
+    // Send to database in background
     await supabase.from('messages').insert({
+      id: tempId,
       user_id: selectedUser.id,
       text: text
     });
