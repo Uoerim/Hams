@@ -8,9 +8,11 @@ const supabase = createClient(
 );
 
 export async function getSettings() {
-  const { data } = await supabase.from('app_settings').select('*').eq('id', 1).single();
+  const { data } = await supabase.from('app_settings').select('initialized, emergency_link, primary_color').eq('id', 1).single();
   return {
-    initialized: data?.initialized || false
+    initialized: data?.initialized || false,
+    emergency_link: data?.emergency_link || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    primary_color: data?.primary_color || 'indigo'
   };
 }
 
@@ -35,6 +37,21 @@ export async function verifyGroup(password: string) {
 
 export async function changeGroupPassword(password: string) {
   await supabase.from('app_settings').update({ group_password: password }).eq('id', 1);
+  return { success: true };
+}
+
+export async function changeAdminPassword(password: string) {
+  await supabase.from('app_settings').update({ admin_password: password }).eq('id', 1);
+  return { success: true };
+}
+
+export async function updateAppSettings(updates: { emergency_link?: string; primary_color?: string }) {
+  await supabase.from('app_settings').update(updates).eq('id', 1);
+  return { success: true };
+}
+
+export async function emptyChat() {
+  await supabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // delete all
   return { success: true };
 }
 
