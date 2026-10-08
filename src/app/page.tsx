@@ -20,8 +20,13 @@ export default function Home() {
   const [appState, setAppState] = useState<"LOADING" | "SELECT_USER" | "SETUP" | "LOGIN" | "ADMIN_PANEL" | "CHAT" | "EMERGENCY">("LOADING");
   const [settings, setSettings] = useState({ initialized: false, emergency_link: '', primary_color: 'indigo', is_dark_mode: true });
   const [users, setUsers] = useState<DBUser[]>([]);
+  const usersRef = useRef<DBUser[]>([]);
+  useEffect(() => { usersRef.current = users; }, [users]);
   
   const [selectedUser, setSelectedUser] = useState<DBUser | null>(null);
+  const selectedUserRef = useRef<DBUser | null>(null);
+  useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
+
   const [passwordInput, setPasswordInput] = useState("");
   const [error, setError] = useState("");
   
@@ -153,7 +158,11 @@ export default function Home() {
     const { data: initialMessages } = await supabase.from('messages').select('*, users(username)').order('created_at', { ascending: true }).limit(200);
     if (initialMessages) setMessages(initialMessages as any);
 
-    const channel = supabase.channel('group_chat', { config: { presence: { key: selectedUser!.username } } });
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    const channel = supabase.channel('group_chat', { config: { presence: { key: selectedUserRef.current?.username || selectedUser!.username } } });
 
     channel
       .on('presence', { event: 'sync' }, () => {
@@ -164,22 +173,29 @@ export default function Home() {
         setTypingUsers(typing);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        const msgUser = users.find(u => u.id === payload.new.user_id);
+        const currentUserList = usersRef.current.length > 0 ? usersRef.current : users;
+        const msgUser = currentUserList.find(u => u.id === payload.new.user_id);
         const newMsg = { ...payload.new, users: { username: msgUser?.username || 'Unknown' } } as Message;
         setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
-        if (selectedUser) markAsRead(selectedUser.id);
+        
+        const currentUser = selectedUserRef.current || selectedUser;
+        if (currentUser) markAsRead(currentUser.id); 
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
         setMessages(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => {
-        setMessages([]);
+        setMessages([]); 
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, (payload) => {
         setUsers(prev => prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u));
       })
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') channel.track({ isTyping: false }).catch(()=>{});
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn("Channel disconnected, reconnecting...");
+          setTimeout(() => { if (channelRef.current === channel) channel.subscribe(); }, 3000);
+        }
       });
 
     channelRef.current = channel;
