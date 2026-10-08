@@ -147,22 +147,29 @@ export default function Home() {
     channelRef.current = channel;
   };
 
+  const safeTrack = (isTyping: boolean) => {
+    try {
+      if (channelRef.current && channelRef.current.state === 'joined') {
+        channelRef.current.track({ isTyping }).catch(() => {});
+      }
+    } catch (e) {
+      console.log("Ignored track error", e);
+    }
+  };
+
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessageInput(e.target.value);
     
-    if (channelRef.current) {
-      // Only send track event if we aren't already typing to avoid WS spam
-      if (!typingTimeoutRef.current) {
-        channelRef.current.track({ isTyping: true });
-      } else {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      
-      typingTimeoutRef.current = setTimeout(() => {
-        if (channelRef.current) channelRef.current.track({ isTyping: false });
-        typingTimeoutRef.current = null;
-      }, 2000);
+    if (!typingTimeoutRef.current) {
+      safeTrack(true);
+    } else {
+      clearTimeout(typingTimeoutRef.current);
     }
+    
+    typingTimeoutRef.current = setTimeout(() => {
+      safeTrack(false);
+      typingTimeoutRef.current = null;
+    }, 2000);
   };
 
   const sendMessage = async (e: React.FormEvent) => {
@@ -172,12 +179,10 @@ export default function Home() {
     const text = messageInput.trim();
     setMessageInput("");
     
-    if (channelRef.current) {
-      channelRef.current.track({ isTyping: false });
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
-      }
+    safeTrack(false);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
     }
 
     // OPTIMISTIC UI: Show message instantly in the UI
