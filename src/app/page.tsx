@@ -505,13 +505,13 @@ export default function Home() {
                <h1 className={`text-xl font-extrabold ${cText}`}>Hams Group</h1>
                <div className="text-xs font-bold text-gray-500 flex items-center gap-1.5 mt-0.5">
                  <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
-                 {onlineUsers.length} online
+                 {onlineUsers.length} online {onlineUsers.length > 0 && <span className="opacity-70 font-normal">({onlineUsers.join(', ')})</span>}
                </div>
              </div>
            </div>
         </header>
 
-        <main className={`flex-1 overflow-y-auto p-4 md:p-6 ${isDark ? "bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] opacity-90" : "bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"} relative custom-scrollbar`}>
+        <main className={`flex-1 overflow-y-auto p-4 md:p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative custom-scrollbar`}>
            <div className="space-y-6 max-w-4xl mx-auto pb-4">
              {messages.length === 0 && (
                <div className="flex flex-col items-center justify-center h-40 text-gray-400">
