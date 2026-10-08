@@ -8,11 +8,12 @@ const supabase = createClient(
 );
 
 export async function getSettings() {
-  const { data } = await supabase.from('app_settings').select('initialized, emergency_link, primary_color').eq('id', 1).single();
+  const { data } = await supabase.from('app_settings').select('initialized, emergency_link, primary_color, is_dark_mode').eq('id', 1).single();
   return {
     initialized: data?.initialized || false,
     emergency_link: data?.emergency_link || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    primary_color: data?.primary_color || 'indigo'
+    primary_color: data?.primary_color || 'indigo',
+    is_dark_mode: data?.is_dark_mode ?? true
   };
 }
 
@@ -25,19 +26,19 @@ export async function setupApp(adminPass: string, groupPass: string) {
   return { success: true };
 }
 
-export async function verifyAdmin(password: string, userId: string) {
+export async function verifyAdmin(password: string, userId: string, device: string) {
   const { data } = await supabase.from('app_settings').select('admin_password').eq('id', 1).single();
   if (data?.admin_password === password) {
-    await supabase.from('users').update({ last_login: new Date().toISOString(), last_seen_at: new Date().toISOString() }).eq('id', userId);
+    await supabase.from('users').update({ last_login: new Date().toISOString(), last_seen_at: new Date().toISOString(), last_device: device }).eq('id', userId);
     return true;
   }
   return false;
 }
 
-export async function verifyGroup(password: string, userId: string) {
+export async function verifyGroup(password: string, userId: string, device: string) {
   const { data } = await supabase.from('app_settings').select('group_password').eq('id', 1).single();
   if (data?.group_password === password) {
-    await supabase.from('users').update({ last_login: new Date().toISOString(), last_seen_at: new Date().toISOString() }).eq('id', userId);
+    await supabase.from('users').update({ last_login: new Date().toISOString(), last_seen_at: new Date().toISOString(), last_device: device }).eq('id', userId);
     return true;
   }
   return false;
@@ -47,13 +48,16 @@ export async function markAsRead(userId: string) {
   await supabase.from('users').update({ last_seen_at: new Date().toISOString() }).eq('id', userId);
 }
 
-export async function editMessage(messageId: string, userId: string, newText: string) {
-  await supabase.from('messages').update({ text: newText, is_edited: true }).eq('id', messageId).eq('user_id', userId);
+export async function editMessage(msgId: string, newText: string, oldText: string) {
+  const { data } = await supabase.from('messages').select('edit_history').eq('id', msgId).single();
+  const history = data?.edit_history || [];
+  history.push({ text: oldText, edited_at: new Date().toISOString() });
+  await supabase.from('messages').update({ text: newText, is_edited: true, edit_history: history }).eq('id', msgId);
   return { success: true };
 }
 
-export async function deleteMessageUser(messageId: string, userId: string) {
-  await supabase.from('messages').update({ text: 'deleted message', is_deleted: true }).eq('id', messageId).eq('user_id', userId);
+export async function deleteMessage(msgId: string) {
+  await supabase.from('messages').update({ text: 'deleted message', is_deleted: true }).eq('id', msgId);
   return { success: true };
 }
 
@@ -67,7 +71,7 @@ export async function changeAdminPassword(password: string) {
   return { success: true };
 }
 
-export async function updateAppSettings(updates: { emergency_link?: string; primary_color?: string }) {
+export async function updateAppSettings(updates: { emergency_link?: string; primary_color?: string; is_dark_mode?: boolean }) {
   await supabase.from('app_settings').update(updates).eq('id', 1);
   return { success: true };
 }
