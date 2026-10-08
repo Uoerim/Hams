@@ -48,6 +48,17 @@ export default function Home() {
   const theme = THEMES[settings.primary_color] || THEMES.indigo;
   const isDark = settings.is_dark_mode;
 
+  // Sync dark mode class to HTML root for global CSS
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
+    }
+  }, [isDark]);
+
   useEffect(() => {
     loadInitialData();
     return () => {
