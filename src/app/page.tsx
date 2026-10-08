@@ -121,10 +121,10 @@ export default function Home() {
         const online = Object.keys(state);
         setOnlineUsers(online);
         
-        // Track typing from state
+        // Track typing from state (check all connections for a user)
         const typing = online.filter(user => {
-          const userState: any = state[user][0];
-          return userState.isTyping;
+          const userConnections = state[user] as any[];
+          return userConnections.some(conn => conn.isTyping);
         });
         setTypingUsers(typing);
       })
@@ -135,6 +135,7 @@ export default function Home() {
         setMessages(prev => [...prev, newMsg]);
       })
       .subscribe(async (status) => {
+        console.log("Realtime status:", status);
         if (status === 'SUBSCRIBED') {
           await channel.track({ isTyping: false });
         }
