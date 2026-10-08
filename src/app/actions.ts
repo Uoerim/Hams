@@ -25,14 +25,36 @@ export async function setupApp(adminPass: string, groupPass: string) {
   return { success: true };
 }
 
-export async function verifyAdmin(password: string) {
+export async function verifyAdmin(password: string, userId: string) {
   const { data } = await supabase.from('app_settings').select('admin_password').eq('id', 1).single();
-  return data?.admin_password === password;
+  if (data?.admin_password === password) {
+    await supabase.from('users').update({ last_login: new Date().toISOString(), last_seen_at: new Date().toISOString() }).eq('id', userId);
+    return true;
+  }
+  return false;
 }
 
-export async function verifyGroup(password: string) {
+export async function verifyGroup(password: string, userId: string) {
   const { data } = await supabase.from('app_settings').select('group_password').eq('id', 1).single();
-  return data?.group_password === password;
+  if (data?.group_password === password) {
+    await supabase.from('users').update({ last_login: new Date().toISOString(), last_seen_at: new Date().toISOString() }).eq('id', userId);
+    return true;
+  }
+  return false;
+}
+
+export async function markAsRead(userId: string) {
+  await supabase.from('users').update({ last_seen_at: new Date().toISOString() }).eq('id', userId);
+}
+
+export async function editMessage(messageId: string, userId: string, newText: string) {
+  await supabase.from('messages').update({ text: newText, is_edited: true }).eq('id', messageId).eq('user_id', userId);
+  return { success: true };
+}
+
+export async function deleteMessageUser(messageId: string, userId: string) {
+  await supabase.from('messages').update({ text: 'deleted message', is_deleted: true }).eq('id', messageId).eq('user_id', userId);
+  return { success: true };
 }
 
 export async function changeGroupPassword(password: string) {

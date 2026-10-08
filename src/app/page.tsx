@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/utils/supabase";
-import { Lock, Unlock, User, UserPlus, Trash2, Settings, MessageSquare, ArrowLeft, Send, AlertCircle, Palette, Link as LinkIcon, AlertTriangle } from "lucide-react";
-import { getSettings, setupApp, verifyAdmin, verifyGroup, getUsers, createUser, deleteUser, changeGroupPassword, changeAdminPassword, updateAppSettings, emptyChat } from "./actions";
+import { Lock, Unlock, User, UserPlus, Trash2, Settings, MessageSquare, ArrowLeft, Send, AlertCircle, Palette, Link as LinkIcon, AlertTriangle, Edit2, Eye, Clock } from "lucide-react";
+import { getSettings, setupApp, verifyAdmin, verifyGroup, getUsers, createUser, deleteUser, changeGroupPassword, changeAdminPassword, updateAppSettings, emptyChat, editMessage, deleteMessageUser, markAsRead } from "./actions";
 
-type DBUser = { id: string; username: string; role: string; created_at: string };
-type Message = { id: string; user_id: string; text: string; created_at: string; users?: { username: string } };
+type DBUser = { id: string; username: string; role: string; created_at: string; last_login: string; last_seen_at: string };
+type Message = { id: string; user_id: string; text: string; created_at: string; is_edited: boolean; is_deleted: boolean; users?: { username: string } };
 
 const THEMES: Record<string, { bg: string, text: string, hover: string, ring: string, lightBg: string, from: string, to: string, border: string }> = {
   indigo: { bg: 'bg-indigo-600', text: 'text-indigo-600', hover: 'hover:bg-indigo-700', ring: 'focus:ring-indigo-500', lightBg: 'bg-indigo-50', from: 'from-indigo-500', to: 'to-purple-600', border: 'hover:border-indigo-200' },
@@ -32,6 +32,8 @@ export default function Home() {
   const [newAdminPass, setNewAdminPass] = useState("");
   const [newEmergencyLink, setNewEmergencyLink] = useState("");
   const [messageInput, setMessageInput] = useState("");
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
@@ -56,12 +58,21 @@ export default function Home() {
     }
   }, [messages, appState]);
 
+  // Mark as read periodically when in chat
+  useEffect(() => {
+    if (appState === "CHAT" && selectedUser) {
+      markAsRead(selectedUser.id);
+      const interval = setInterval(() => markAsRead(selectedUser.id), 15000);
+      return () => clearInterval(interval);
+    }
+  }, [appState, selectedUser]);
+
   async function loadInitialData() {
     setAppState("LOADING");
     const [dbSettings, dbUsers] = await Promise.all([getSettings(), getUsers()]);
-    setSettings(dbSettings);
-    setNewEmergencyLink(dbSettings.emergency_link);
-    setUsers(dbUsers);
+    setSettings(dbSettings as any);
+    setNewEmergencyLink((dbSettings as any).emergency_link);
+    setUsers(dbUsers as DBUser[]);
     setAppState("SELECT_USER");
   }
 
@@ -99,11 +110,11 @@ export default function Home() {
     if (!selectedUser) return;
 
     if (selectedUser.role === "admin") {
-      const isValid = await verifyAdmin(passwordInput);
+      const isValid = await verifyAdmin(passwordInput, selectedUser.id);
       if (isValid) setAppState("ADMIN_PANEL");
       else setError("Incorrect Admin Password.");
     } else {
-      const isValid = await verifyGroup(passwordInput);
+      const isValid = await verifyGroup(passwordInput, selectedUser.id);
       if (isValid) enterChat();
       else setError("Incorrect Group Password.");
     }
@@ -130,13 +141,19 @@ export default function Home() {
         const msgUser = users.find(u => u.id === payload.new.user_id);
         const newMsg = { ...payload.new, users: { username: msgUser?.username || 'Unknown' } } as Message;
         setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
+        if (selectedUser) markAsRead(selectedUser.id); // Mark read on receive
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
+        setMessages(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => {
-        // Chat was emptied
-        setMessages([]);
+        setMessages([]); // Admin emptied chat
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, (payload) => {
+        setUsers(prev => prev.map(u => u.id === payload.new.id ? { ...u, ...payload.new } : u));
       })
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') channel.track({ isTyping: false });
+        if (status === 'SUBSCRIBED') channel.track({ isTyping: false }).catch(()=>{});
       });
 
     channelRef.current = channel;
@@ -168,9 +185,30 @@ export default function Home() {
     safeTrack(false);
     if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
 
+    if (editingMsgId) {
+      const msgId = editingMsgId;
+      setEditingMsgId(null);
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text, is_edited: true } : m));
+      await editMessage(msgId, selectedUser.id, text);
+      return;
+    }
+
     const tempId = crypto.randomUUID();
-    setMessages(prev => [...prev, { id: tempId, user_id: selectedUser.id, text, created_at: new Date().toISOString(), users: { username: selectedUser.username } }]);
+    const newMsg: Message = { id: tempId, user_id: selectedUser.id, text, created_at: new Date().toISOString(), is_edited: false, is_deleted: false, users: { username: selectedUser.username } };
+    setMessages(prev => [...prev, newMsg]);
     await supabase.from('messages').insert({ id: tempId, user_id: selectedUser.id, text });
+  };
+
+  const handleEditInit = (msg: Message) => {
+    if (msg.is_deleted) return;
+    setEditingMsgId(msg.id);
+    setMessageInput(msg.text);
+  };
+
+  const handleDeleteMsg = async (msgId: string) => {
+    if (!selectedUser) return;
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: 'deleted message', is_deleted: true } : m));
+    await deleteMessageUser(msgId, selectedUser.id);
   };
 
   // Admin Actions
@@ -179,11 +217,11 @@ export default function Home() {
     if (!newUsername.trim()) return;
     const { error: createErr } = await createUser(newUsername.trim());
     if (createErr) alert(createErr);
-    else { setNewUsername(""); setUsers(await getUsers()); }
+    else { setNewUsername(""); setUsers(await getUsers() as DBUser[]); }
   };
   const handleDeleteUser = async (id: string) => {
     const { error: delErr } = await deleteUser(id);
-    if (delErr) alert(delErr); else setUsers(await getUsers());
+    if (delErr) alert(delErr); else setUsers(await getUsers() as DBUser[]);
   };
   const handleUpdateGroupPass = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,6 +244,7 @@ export default function Home() {
   const handleChangeTheme = async (color: string) => {
     await updateAppSettings({ primary_color: color });
     setSettings(s => ({ ...s, primary_color: color }));
+    setShowColorPicker(false);
   };
   const handleEmptyChat = async () => {
     if (confirm("Are you sure you want to delete ALL messages?")) {
@@ -214,11 +253,22 @@ export default function Home() {
     }
   };
 
+  const formatTime = (ts: string) => {
+    if (!ts) return "";
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  const formatDate = (ts: string) => {
+    if (!ts) return "Never";
+    const d = new Date(ts);
+    if (new Date().toDateString() === d.toDateString()) return "Today at " + formatTime(ts);
+    return d.toLocaleDateString() + " " + formatTime(ts);
+  };
+
   // Renders
   if (appState === "EMERGENCY") {
     return (
-      <div className="fixed inset-0 z-[9999] bg-white/30 backdrop-blur-3xl flex items-center justify-center transition-all duration-500">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-gray-900"></div>
+      <div className="fixed inset-0 z-[9999] bg-white/40 backdrop-blur-[50px] flex items-center justify-center transition-all duration-500">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-gray-900"></div>
       </div>
     );
   }
@@ -230,23 +280,27 @@ export default function Home() {
   if (appState === "SELECT_USER") {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-100 p-4 relative overflow-hidden">
-        {/* Fancy Background */}
         <div className={`absolute top-0 left-0 w-full h-64 bg-gradient-to-br ${theme.from} ${theme.to} rounded-b-[4rem] shadow-xl transform -skew-y-6 origin-top-left -translate-y-10 scale-110`}></div>
         
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/50 z-10">
-          <div className="px-8 py-10 text-center">
+        <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/50 z-10 flex flex-col max-h-[90vh]">
+          <div className="px-8 py-10 text-center flex-shrink-0">
             <h1 className={`text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r ${theme.from} ${theme.to} mb-2 tracking-tight`}>Hams</h1>
             <p className="text-gray-500 text-sm font-medium">Select your profile to continue</p>
           </div>
-          <div className="p-4 pt-0 space-y-3 max-h-[50vh] overflow-y-auto px-6 pb-6">
+          <div className="p-4 pt-0 space-y-3 overflow-y-auto px-6 pb-6 custom-scrollbar">
             {users.map(u => (
               <button key={u.id} onClick={() => handleUserClick(u)} className={`w-full flex items-center p-4 hover:bg-gray-50/80 rounded-2xl transition-all duration-300 text-left group border border-gray-100 hover:shadow-md ${theme.border}`}>
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mr-4 shadow-sm transition-transform group-hover:scale-105 ${u.role === 'admin' ? theme.bg + ' text-white' : theme.lightBg + ' ' + theme.text}`}>
                   {u.role === 'admin' ? <Settings size={22} /> : <User size={22} />}
                 </div>
-                <div>
+                <div className="flex-1 overflow-hidden">
                   <div className="font-bold text-gray-900 text-lg">{u.username}</div>
-                  <div className={`text-xs uppercase tracking-wider font-semibold ${u.role === 'admin' ? theme.text : 'text-gray-400'}`}>{u.role}</div>
+                  <div className={`text-xs uppercase tracking-wider font-semibold ${u.role === 'admin' ? theme.text : 'text-gray-400'} flex items-center gap-1`}>
+                    {u.role}
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-0.5 truncate flex items-center gap-1">
+                    <Clock size={10} /> Last seen: {formatDate(u.last_login)}
+                  </div>
                 </div>
               </button>
             ))}
@@ -256,6 +310,7 @@ export default function Home() {
     );
   }
 
+  // ... SETUP and LOGIN stay mostly the same ...
   if (appState === "SETUP") {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50 p-4">
@@ -270,11 +325,11 @@ export default function Home() {
           <form onSubmit={handleSetup} className="space-y-6">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Create Admin Password</label>
-              <input type="password" value={setupAdminPass} onChange={e => setSetupAdminPass(e.target.value)} className={`w-full border-2 border-gray-200 rounded-2xl px-5 py-4 outline-none ${theme.ring} focus:border-transparent transition-all text-gray-900 font-medium`} placeholder="Required for admin panel" required />
+              <input type="password" value={setupAdminPass} onChange={e => setSetupAdminPass(e.target.value)} className={`w-full border-2 border-gray-200 rounded-2xl px-5 py-4 outline-none ${theme.ring} focus:border-transparent transition-all text-gray-900 font-medium`} required />
             </div>
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Create Group Chat Password</label>
-              <input type="password" value={setupGroupPass} onChange={e => setSetupGroupPass(e.target.value)} className={`w-full border-2 border-gray-200 rounded-2xl px-5 py-4 outline-none ${theme.ring} focus:border-transparent transition-all text-gray-900 font-medium`} placeholder="Share this with your users" required />
+              <input type="password" value={setupGroupPass} onChange={e => setSetupGroupPass(e.target.value)} className={`w-full border-2 border-gray-200 rounded-2xl px-5 py-4 outline-none ${theme.ring} focus:border-transparent transition-all text-gray-900 font-medium`} required />
             </div>
             {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
             <button type="submit" className={`w-full ${theme.bg} text-white rounded-2xl py-4 font-bold text-lg ${theme.hover} transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5`}>Complete Setup</button>
@@ -328,22 +383,16 @@ export default function Home() {
               <button onClick={enterChat} className={`flex items-center gap-2 ${theme.bg} text-white px-6 py-2.5 rounded-xl ${theme.hover} transition-all shadow-md font-bold hover:shadow-lg transform hover:-translate-y-0.5`}>
                 <MessageSquare size={18} /> Enter Chat
               </button>
-              <button onClick={triggerEmergency} className="flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-xl hover:bg-red-700 transition-all shadow-md font-bold hover:shadow-lg transform hover:-translate-y-0.5 ml-auto md:ml-0">
-                <AlertTriangle size={18} /> Emergency
-              </button>
             </div>
           </div>
 
           <div className="grid lg:grid-cols-2 gap-8">
-            {/* Users Management */}
             <div className="bg-white p-8 rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 flex flex-col h-[500px]">
               <h2 className="text-xl font-extrabold text-gray-900 mb-6 flex items-center gap-3"><div className={`p-2 ${theme.lightBg} ${theme.text} rounded-lg`}><User size={20}/></div> Manage Access</h2>
-              
               <form onSubmit={handleCreateUser} className="flex gap-3 mb-8">
                 <input type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="New username" className={`flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent text-gray-900 font-medium bg-gray-50 focus:bg-white transition-colors`} />
                 <button type="submit" className={`bg-gray-900 text-white px-6 py-3 rounded-xl hover:bg-gray-800 transition-all font-bold flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5`}><UserPlus size={18} /> Add</button>
               </form>
-
               <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
                 {users.map(u => (
                   <div key={u.id} className="flex justify-between items-center p-4 bg-gray-50/80 hover:bg-gray-100/80 rounded-2xl border border-gray-100 transition-colors">
@@ -351,7 +400,10 @@ export default function Home() {
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${u.role === 'admin' ? theme.lightBg + ' ' + theme.text : 'bg-gray-200 text-gray-600'}`}>
                         {u.role === 'admin' ? <Settings size={16}/> : <User size={16}/>}
                       </div>
-                      <span className="font-bold text-gray-900 text-lg">{u.username} <span className="text-xs font-semibold text-gray-400 ml-2 uppercase tracking-wide">{u.role}</span></span>
+                      <div>
+                        <div className="font-bold text-gray-900 text-lg">{u.username} <span className="text-xs font-semibold text-gray-400 ml-2 uppercase tracking-wide">{u.role}</span></div>
+                        <div className="text-[10px] text-gray-500">Seen: {formatDate(u.last_seen_at)}</div>
+                      </div>
                     </div>
                     {u.role !== 'admin' && (
                       <button onClick={() => handleDeleteUser(u.id)} className="text-red-500 hover:bg-red-100 p-2.5 rounded-xl transition-colors"><Trash2 size={18} /></button>
@@ -362,10 +414,8 @@ export default function Home() {
             </div>
 
             <div className="space-y-8">
-              {/* Security Settings */}
               <div className="bg-white p-8 rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100">
                 <h2 className="text-xl font-extrabold text-gray-900 mb-6 flex items-center gap-3"><div className={`p-2 ${theme.lightBg} ${theme.text} rounded-lg`}><Lock size={20}/></div> Security Controls</h2>
-                
                 <div className="space-y-6">
                   <form onSubmit={handleUpdateGroupPass} className="flex flex-col sm:flex-row gap-3">
                     <input type="password" value={newGroupPass} onChange={e => setNewGroupPass(e.target.value)} className={`flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent text-gray-900 font-medium`} placeholder="New Group Password" />
@@ -378,10 +428,8 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Advanced Settings */}
               <div className="bg-white p-8 rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100">
                 <h2 className="text-xl font-extrabold text-gray-900 mb-6 flex items-center gap-3"><div className={`p-2 ${theme.lightBg} ${theme.text} rounded-lg`}><Palette size={20}/></div> Customization</h2>
-                
                 <form onSubmit={handleUpdateSettings} className="mb-6">
                   <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><LinkIcon size={16}/> Emergency Redirect Link</label>
                   <div className="flex flex-col sm:flex-row gap-3">
@@ -389,18 +437,8 @@ export default function Home() {
                     <button type="submit" className="bg-gray-100 text-gray-900 font-bold px-6 py-3 rounded-xl hover:bg-gray-200 transition-colors">Save</button>
                   </div>
                 </form>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><Palette size={16}/> Accent Color</label>
-                  <div className="flex gap-4">
-                    {Object.keys(THEMES).map(color => (
-                      <button key={color} onClick={() => handleChangeTheme(color)} className={`w-12 h-12 rounded-full ${THEMES[color].bg} ${settings.primary_color === color ? 'ring-4 ring-offset-2 ring-gray-900 scale-110' : 'hover:scale-110'} transition-all shadow-md`}></button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
-              {/* Danger Zone */}
               <div className="bg-red-50 p-8 rounded-3xl border border-red-200">
                 <h2 className="text-xl font-extrabold text-red-700 mb-4 flex items-center gap-3"><AlertCircle size={20}/> Danger Zone</h2>
                 <p className="text-red-600 text-sm font-medium mb-4">This will permanently delete all messages in the group chat for everyone.</p>
@@ -408,7 +446,6 @@ export default function Home() {
                   Nuke Chat History
                 </button>
               </div>
-
             </div>
           </div>
         </div>
@@ -437,9 +474,6 @@ export default function Home() {
                </div>
              </div>
            </div>
-           <button onClick={triggerEmergency} className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm" title="Emergency Logout">
-             <AlertTriangle size={18} />
-           </button>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative custom-scrollbar">
@@ -452,12 +486,36 @@ export default function Home() {
              )}
              {messages.map(msg => {
                const isMe = msg.user_id === selectedUser?.id;
+               
+               // Compute Read Receipts (Who saw this message?)
+               const readers = users.filter(u => u.id !== msg.user_id && new Date(u.last_seen_at) >= new Date(msg.created_at));
+               
                return (
-                 <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                    <div className="text-[11px] uppercase tracking-wider text-gray-500 mb-1 ml-2 font-bold">{isMe ? "You" : msg.users?.username}</div>
-                    <div className={`px-5 py-3.5 rounded-3xl max-w-[85%] md:max-w-[70%] break-words shadow-sm text-[15px] leading-relaxed ${isMe ? theme.bg + " text-white rounded-tr-sm" : "bg-white border border-gray-100 text-gray-800 rounded-tl-sm shadow-gray-200/50"}`}>
-                      {msg.text}
+                 <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} group/msg`}>
+                    <div className="text-[11px] uppercase tracking-wider text-gray-500 mb-1 ml-2 font-bold flex items-center gap-2">
+                      {isMe ? "You" : msg.users?.username} <span className="text-[9px] font-medium text-gray-400 opacity-80">{formatTime(msg.created_at)}</span>
                     </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {isMe && !msg.is_deleted && (
+                        <div className="opacity-0 group-hover/msg:opacity-100 flex items-center gap-1 transition-opacity mr-1">
+                          <button onClick={() => handleEditInit(msg)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"><Edit2 size={14}/></button>
+                          <button onClick={() => handleDeleteMsg(msg.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"><Trash2 size={14}/></button>
+                        </div>
+                      )}
+                      
+                      <div className={`px-5 py-3.5 rounded-3xl max-w-[300px] md:max-w-[500px] break-words shadow-sm text-[15px] leading-relaxed relative ${msg.is_deleted ? 'bg-gray-100 border border-gray-200 text-gray-400 italic rounded-tr-sm' : (isMe ? theme.bg + " text-white rounded-tr-sm" : "bg-white border border-gray-100 text-gray-800 rounded-tl-sm shadow-gray-200/50")}`}>
+                        {msg.text}
+                        {msg.is_edited && !msg.is_deleted && <span className="text-[10px] ml-2 opacity-60 italic">(edited)</span>}
+                      </div>
+                    </div>
+
+                    {/* Read Receipts */}
+                    {isMe && readers.length > 0 && !msg.is_deleted && (
+                      <div className="text-[10px] text-gray-400 mt-1 mr-2 flex items-center gap-1 font-medium">
+                        <Eye size={12} className={theme.text} /> Read by {readers.map(r => r.username).join(", ")}
+                      </div>
+                    )}
                  </div>
                );
              })}
@@ -477,17 +535,38 @@ export default function Home() {
            </div>
         </main>
 
-        <footer className="bg-white/80 backdrop-blur-xl border-t border-gray-200 p-4 sticky bottom-0 z-10">
-           <div className="max-w-4xl mx-auto">
-             <form onSubmit={sendMessage} className="flex items-center gap-3 bg-gray-100 p-1.5 rounded-full border border-gray-200 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-gray-300 transition-all">
+        <footer className="bg-white/80 backdrop-blur-xl border-t border-gray-200 p-3 sm:p-4 sticky bottom-0 z-10">
+           <div className="max-w-4xl mx-auto flex items-end gap-2">
+             
+             {/* Bottom Left Buttons: Customize and Emergency */}
+             <div className="flex items-center gap-2 pb-1.5 relative">
+               <button onClick={() => setShowColorPicker(!showColorPicker)} className={`w-12 h-12 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:${theme.bg} hover:text-white transition-all shadow-sm`} title="Customize Colors">
+                 <Palette size={20} />
+               </button>
+               {showColorPicker && (
+                 <div className="absolute bottom-16 left-0 bg-white p-3 rounded-2xl shadow-xl border border-gray-100 flex gap-2 animate-in fade-in zoom-in duration-200">
+                    {Object.keys(THEMES).map(color => (
+                      <button key={color} onClick={() => handleChangeTheme(color)} className={`w-8 h-8 rounded-full ${THEMES[color].bg} ${settings.primary_color === color ? 'ring-2 ring-offset-2 ring-gray-900 scale-110' : 'hover:scale-110'} transition-all shadow-sm`}></button>
+                    ))}
+                 </div>
+               )}
+               <button onClick={triggerEmergency} className="w-12 h-12 flex items-center justify-center rounded-full bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm" title="Emergency Logout">
+                 <AlertTriangle size={20} />
+               </button>
+             </div>
+
+             <form onSubmit={sendMessage} className={`flex-1 flex items-center gap-2 bg-gray-50 p-1.5 rounded-[2rem] border-2 ${editingMsgId ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'} focus-within:${theme.ring} focus-within:ring-2 focus-within:border-transparent transition-all`}>
                <input 
                  type="text" 
-                 placeholder="Type your message..." 
+                 placeholder={editingMsgId ? "Edit your message..." : "Type your message..."}
                  className="flex-1 bg-transparent px-5 py-3 outline-none text-gray-900 font-medium"
                  value={messageInput}
                  onChange={handleTyping}
                />
-               <button type="submit" disabled={!messageInput.trim()} className={`${theme.bg} disabled:opacity-50 disabled:scale-100 text-white p-3.5 rounded-full ${theme.hover} transition-all shadow-md transform hover:scale-105 flex-shrink-0 mr-0.5`}>
+               {editingMsgId && (
+                 <button type="button" onClick={() => { setEditingMsgId(null); setMessageInput(""); }} className="text-gray-400 hover:text-gray-700 px-2 font-bold text-sm">Cancel</button>
+               )}
+               <button type="submit" disabled={!messageInput.trim()} className={`${editingMsgId ? 'bg-yellow-500 hover:bg-yellow-600' : theme.bg + ' ' + theme.hover} disabled:opacity-50 disabled:scale-100 text-white p-3.5 rounded-full transition-all shadow-md transform hover:scale-105 flex-shrink-0 mr-0.5`}>
                  <Send size={20} className="ml-0.5" />
                </button>
              </form>
