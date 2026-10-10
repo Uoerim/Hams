@@ -344,7 +344,7 @@ export default function Home() {
         
         <div className={`${isDark ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-white/50'} backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border z-10 flex flex-col max-h-[90vh]`}>
           <div className="px-8 py-10 text-center flex-shrink-0">
-            <h1 className={`text-5xl font-blaka text-transparent bg-clip-text bg-gradient-to-r ${theme.from} ${theme.to} mb-2 tracking-wide`}>همس</h1>
+            <h1 className={`text-5xl font-changa text-transparent bg-clip-text bg-gradient-to-r ${theme.from} ${theme.to} mb-2 tracking-wide`}>همس</h1>
             <p className={`${cTextMuted} text-sm font-medium`}>Select your profile to continue</p>
           </div>
           <div className="p-4 pt-0 space-y-3 overflow-y-auto px-6 pb-6 custom-scrollbar">
@@ -532,7 +532,7 @@ export default function Home() {
                <ArrowLeft size={20} />
              </button>
              <div>
-               <h1 className={`text-3xl font-blaka ${cText} tracking-wide`}>همس</h1>
+               <h1 className={`text-3xl font-changa ${cText} tracking-wide`}>همس</h1>
                <div className="text-xs font-bold text-gray-500 flex items-center gap-1.5 mt-0.5">
                  <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
                  {onlineUsers.length} online {onlineUsers.length > 0 && <span className="opacity-70 font-normal">({onlineUsers.join(', ')})</span>}
