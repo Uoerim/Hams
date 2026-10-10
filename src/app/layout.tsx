@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 const blaka = Blaka({
   weight: "400",
   variable: "--font-blaka",
-  subsets: ["latin"],
+  subsets: ["latin", "arabic"],
 });
 
 export const metadata: Metadata = {
