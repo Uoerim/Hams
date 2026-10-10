@@ -645,14 +645,12 @@ export default function Home() {
         </main>
 
         <footer className={`${cHeader} backdrop-blur-xl border-t p-3 sm:p-4 sticky bottom-0 z-20 shrink-0`}>
-           <div className="max-w-4xl mx-auto w-full relative">
+           <div className="max-w-4xl mx-auto w-full relative flex items-center gap-2">
              
-             {/* Floating Emergency Button above text box */}
-             <div className="absolute -top-16 right-0">
-               <button onClick={triggerEmergency} className="w-12 h-12 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 text-red-500 border-2 border-red-500/20 hover:bg-red-500 hover:text-white hover:border-transparent transition-all shadow-[0_4px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur-md transform hover:scale-105" title="Emergency Logout">
-                 <AlertTriangle size={20} />
-               </button>
-             </div>
+             {/* Floating on mobile, inline left on laptop */}
+             <button onClick={triggerEmergency} className="absolute -top-16 right-0 sm:static sm:top-auto sm:right-auto w-12 h-12 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 text-red-500 border-2 border-red-500/20 hover:bg-red-500 hover:text-white hover:border-transparent transition-all shadow-[0_4px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.5)] sm:shadow-md backdrop-blur-md transform hover:scale-105 shrink-0" title="Emergency Logout">
+               <AlertTriangle size={20} />
+             </button>
 
              <form onSubmit={sendMessage} className={`w-full flex items-center gap-1 sm:gap-2 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'} p-1.5 rounded-[2rem] border-2 ${editingMsgId ? 'border-yellow-500 bg-yellow-500/10' : ''} focus-within:${theme.ring} focus-within:ring-2 focus-within:border-transparent transition-all`}>
                <input 
