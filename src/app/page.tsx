@@ -651,7 +651,7 @@ export default function Home() {
 
              <div className="w-full flex items-center gap-2 relative">
                {/* Floating on mobile, inline left on laptop */}
-               <button onClick={triggerEmergency} className="absolute -top-12 right-0 sm:static sm:top-auto sm:right-auto w-12 h-12 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 text-red-500 border-2 border-red-500/20 hover:bg-red-500 hover:text-white hover:border-transparent transition-all shadow-[0_4px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.5)] sm:shadow-md backdrop-blur-md transform hover:scale-105 shrink-0" title="Emergency Logout">
+               <button onClick={triggerEmergency} className="absolute -top-[72px] right-0 sm:static sm:top-auto sm:right-auto w-12 h-12 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 text-red-500 border-2 border-red-500/20 hover:bg-red-500 hover:text-white hover:border-transparent transition-all shadow-[0_4px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.5)] sm:shadow-md backdrop-blur-md transform hover:scale-105 shrink-0" title="Emergency Logout">
                  <AlertTriangle size={20} />
                </button>
 
