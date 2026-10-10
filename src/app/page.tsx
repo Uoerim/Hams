@@ -334,12 +334,12 @@ export default function Home() {
   }
 
   if (appState === "LOADING") {
-    return <div className={`h-screen flex items-center justify-center ${cBg}`}><div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDark ? 'border-white' : 'border-gray-900'}`}></div></div>;
+    return <div className={`h-[100dvh] flex items-center justify-center ${cBg}`}><div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDark ? 'border-white' : 'border-gray-900'}`}></div></div>;
   }
 
   if (appState === "SELECT_USER") {
     return (
-      <div className={`h-screen flex items-center justify-center ${cBg} p-4 relative overflow-hidden transition-colors`}>
+      <div className={`h-[100dvh] flex items-center justify-center ${cBg} p-4 relative overflow-hidden transition-colors`}>
         <div className={`absolute top-0 left-0 w-full h-64 bg-gradient-to-br ${theme.from} ${theme.to} rounded-b-[4rem] shadow-xl transform -skew-y-6 origin-top-left -translate-y-10 scale-110`}></div>
         
         <div className={`${isDark ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-white/50'} backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border z-10 flex flex-col max-h-[90vh]`}>
@@ -374,7 +374,7 @@ export default function Home() {
   // ... SETUP and LOGIN ...
   if (appState === "SETUP") {
     return (
-      <div className={`h-screen flex items-center justify-center ${cBg} p-4`}>
+      <div className={`h-[100dvh] flex items-center justify-center ${cBg} p-4`}>
         <div className={`${cCard} rounded-3xl shadow-2xl w-full max-w-md p-8 border`}>
           <div className="mb-8 text-center">
             <div className={`w-20 h-20 ${isDark ? 'bg-gray-700' : theme.lightBg} ${theme.text} rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner`}>
@@ -402,7 +402,7 @@ export default function Home() {
 
   if (appState === "LOGIN") {
     return (
-      <div className={`h-screen flex items-center justify-center ${cBg} p-4`}>
+      <div className={`h-[100dvh] flex items-center justify-center ${cBg} p-4`}>
         <div className={`${cCard} rounded-3xl shadow-2xl w-full max-w-md p-8 border`}>
           <button onClick={() => setAppState("SELECT_USER")} className={`${cTextMuted} hover:${cText} mb-6 transition-colors flex items-center gap-2 font-medium`}>
             <ArrowLeft size={20} /> Back
@@ -426,7 +426,7 @@ export default function Home() {
 
   if (appState === "ADMIN_PANEL") {
     return (
-      <div className={`min-h-screen ${cBg} p-4 md:p-8 font-sans pb-20 transition-colors`}>
+      <div className={`min-h-[100dvh] ${cBg} p-4 md:p-8 font-sans pb-20 transition-colors`}>
         <div className="max-w-5xl mx-auto space-y-8">
           <div className={`flex flex-col md:flex-row justify-between items-center ${cCard} p-6 md:p-8 rounded-3xl shadow-xl shadow-black/5 border gap-4`}>
             <div className="flex items-center gap-4">
@@ -519,7 +519,7 @@ export default function Home() {
     const isAdmin = selectedUser?.role === 'admin';
     
     return (
-      <div className={`flex flex-col h-screen ${cBg} font-sans ${cText} relative transition-colors`}>
+      <div className={`flex flex-col h-[100dvh] ${cBg} font-sans ${cText} relative transition-colors`}>
         {/* Global Background Layer */}
         <div className={`absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none ${isDark ? 'opacity-10' : 'opacity-100'} z-0`}></div>
 
@@ -541,7 +541,7 @@ export default function Home() {
            </div>
         </header>
 
-        <main className={`flex-1 overflow-y-auto p-4 md:p-6 relative custom-scrollbar z-10`}>
+        <main className={`flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 md:p-6 relative custom-scrollbar z-10`}>
            <div className="space-y-6 max-w-4xl mx-auto pb-4">
              {messages.length === 0 && (
                <div className="flex flex-col items-center justify-center h-40 text-gray-400">
@@ -556,20 +556,20 @@ export default function Home() {
                const readers = users.filter(u => u.id !== msg.user_id && new Date(u.last_seen_at) >= new Date(msg.created_at));
                
                return (
-                 <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} group/msg`}>
+                 <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} group/msg w-full`}>
                     <div className={`text-[11px] uppercase tracking-wider ${cTextMuted} mb-1 ml-2 font-bold flex items-center gap-2`}>
                       {isMe ? "You" : msg.users?.username} <span className="text-[9px] font-medium opacity-60">{formatTime(msg.created_at)}</span>
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-1 w-full ${isMe ? "justify-end" : "justify-start"}`}>
                       {canDelete && !msg.is_deleted && (
-                        <div className="opacity-0 group-hover/msg:opacity-100 flex items-center gap-1 transition-opacity mr-1">
+                        <div className={`opacity-100 lg:opacity-0 lg:group-hover/msg:opacity-100 flex shrink-0 items-center gap-1 transition-opacity ${isMe ? "mr-1" : "ml-1 order-last"}`}>
                           {isMe && <button onClick={() => handleEditInit(msg)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-full transition-colors"><Edit2 size={14}/></button>}
                           <button onClick={() => handleDeleteMsg(msg.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors"><Trash2 size={14}/></button>
                         </div>
                       )}
                       
-                      <div className={`px-5 py-3.5 rounded-3xl max-w-[300px] md:max-w-[500px] break-words shadow-sm text-[15px] leading-relaxed relative ${msg.is_deleted ? (isDark ? 'bg-gray-800 border-gray-700 text-gray-500' : 'bg-gray-100 border-gray-200 text-gray-400') + ' italic rounded-tr-sm' : (isMe ? theme.bg + " text-white rounded-tr-sm" : cBubbleOther + " rounded-tl-sm")}`}>
+                      <div className={`px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl sm:rounded-3xl max-w-[85%] sm:max-w-[75%] lg:max-w-[65%] break-words shadow-sm text-[15px] leading-relaxed relative ${msg.is_deleted ? (isDark ? 'bg-gray-800 border-gray-700 text-gray-500' : 'bg-gray-100 border-gray-200 text-gray-400') + ' italic rounded-tr-sm' : (isMe ? theme.bg + " text-white rounded-tr-sm" : cBubbleOther + " rounded-tl-sm")}`}>
                         {msg.text}
                         {msg.is_edited && !msg.is_deleted && (
                           <span 
