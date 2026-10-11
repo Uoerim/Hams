@@ -53,14 +53,25 @@ export default function Home() {
   const theme = THEMES[settings.primary_color] || THEMES.indigo;
   const isDark = settings.is_dark_mode;
 
-  // Sync dark mode class to HTML root for global CSS
+  // Sync dark mode class to HTML root and update meta theme-color for iOS Safari
   useEffect(() => {
+    const themeColor = isDark ? '#111827' : '#ffffff';
     if (isDark) {
       document.documentElement.classList.add('dark');
       document.documentElement.style.colorScheme = 'dark';
     } else {
       document.documentElement.classList.remove('dark');
       document.documentElement.style.colorScheme = 'light';
+    }
+
+    const metaThemes = document.querySelectorAll('meta[name="theme-color"]');
+    if (metaThemes.length > 0) {
+      metaThemes.forEach(m => m.setAttribute('content', themeColor));
+    } else {
+      const newMeta = document.createElement('meta');
+      newMeta.name = 'theme-color';
+      newMeta.content = themeColor;
+      document.head.appendChild(newMeta);
     }
   }, [isDark]);
 
@@ -334,12 +345,12 @@ export default function Home() {
   }
 
   if (appState === "LOADING") {
-    return <div className={`h-[100dvh] flex items-center justify-center ${cBg}`}><div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDark ? 'border-white' : 'border-gray-900'}`}></div></div>;
+    return <div className={`h-[100dvh] min-h-[100dvh] flex items-center justify-center ${cBg} screen-safe`}><div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDark ? 'border-white' : 'border-gray-900'}`}></div></div>;
   }
 
   if (appState === "SELECT_USER") {
     return (
-      <div className={`h-[100dvh] flex items-center justify-center ${cBg} p-4 relative overflow-hidden transition-colors`}>
+      <div className={`h-[100dvh] min-h-[100dvh] flex items-center justify-center ${cBg} p-4 screen-safe relative overflow-hidden transition-colors`}>
         <div className={`absolute top-0 left-0 w-full h-64 bg-gradient-to-br ${theme.from} ${theme.to} rounded-b-[4rem] shadow-xl transform -skew-y-6 origin-top-left -translate-y-10 scale-110`}></div>
         
         <div className={`${isDark ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-white/50'} backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border z-10 flex flex-col max-h-[90vh]`}>
@@ -374,7 +385,7 @@ export default function Home() {
   // ... SETUP and LOGIN ...
   if (appState === "SETUP") {
     return (
-      <div className={`h-[100dvh] flex items-center justify-center ${cBg} p-4`}>
+      <div className={`h-[100dvh] min-h-[100dvh] flex items-center justify-center ${cBg} p-4 screen-safe`}>
         <div className={`${cCard} rounded-3xl shadow-2xl w-full max-w-md p-8 border`}>
           <div className="mb-8 text-center">
             <div className={`w-20 h-20 ${isDark ? 'bg-gray-700' : theme.lightBg} ${theme.text} rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner`}>
@@ -386,11 +397,11 @@ export default function Home() {
           <form onSubmit={handleSetup} className="space-y-6">
             <div>
               <label className={`block text-sm font-bold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Create Admin Password</label>
-              <input type="password" value={setupAdminPass} onChange={e => setSetupAdminPass(e.target.value)} className={`w-full border-2 rounded-2xl px-5 py-4 outline-none ${theme.ring} focus:border-transparent transition-all ${cInput} font-medium`} required />
+              <input type="password" value={setupAdminPass} onChange={e => setSetupAdminPass(e.target.value)} className={`w-full border-2 rounded-2xl px-5 py-4 outline-none ${theme.ring} focus:border-transparent transition-all ${cInput} font-medium text-base`} required />
             </div>
             <div>
               <label className={`block text-sm font-bold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Create Group Chat Password</label>
-              <input type="password" value={setupGroupPass} onChange={e => setSetupGroupPass(e.target.value)} className={`w-full border-2 rounded-2xl px-5 py-4 outline-none ${theme.ring} focus:border-transparent transition-all ${cInput} font-medium`} required />
+              <input type="password" value={setupGroupPass} onChange={e => setSetupGroupPass(e.target.value)} className={`w-full border-2 rounded-2xl px-5 py-4 outline-none ${theme.ring} focus:border-transparent transition-all ${cInput} font-medium text-base`} required />
             </div>
             {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
             <button type="submit" className={`w-full ${theme.bg} text-white rounded-2xl py-4 font-bold text-lg ${theme.hover} transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5`}>Complete Setup</button>
@@ -402,7 +413,7 @@ export default function Home() {
 
   if (appState === "LOGIN") {
     return (
-      <div className={`h-[100dvh] flex items-center justify-center ${cBg} p-4`}>
+      <div className={`h-[100dvh] min-h-[100dvh] flex items-center justify-center ${cBg} p-4 screen-safe`}>
         <div className={`${cCard} rounded-3xl shadow-2xl w-full max-w-md p-8 border`}>
           <button onClick={() => setAppState("SELECT_USER")} className={`${cTextMuted} hover:${cText} mb-6 transition-colors flex items-center gap-2 font-medium`}>
             <ArrowLeft size={20} /> Back
@@ -426,7 +437,7 @@ export default function Home() {
 
   if (appState === "ADMIN_PANEL") {
     return (
-      <div className={`min-h-[100dvh] ${cBg} p-4 md:p-8 font-sans pb-20 transition-colors`}>
+      <div className={`min-h-[100dvh] ${cBg} p-4 md:p-8 font-sans screen-safe pb-20 transition-colors`}>
         <div className="max-w-5xl mx-auto space-y-8">
           <div className={`flex flex-col md:flex-row justify-between items-center ${cCard} p-6 md:p-8 rounded-3xl shadow-xl shadow-black/5 border gap-4`}>
             <div className="flex items-center gap-4">
@@ -450,7 +461,7 @@ export default function Home() {
             <div className={`${cCard} p-8 rounded-3xl shadow-xl shadow-black/5 border flex flex-col h-[500px]`}>
               <h2 className={`text-xl font-extrabold ${cText} mb-6 flex items-center gap-3`}><div className={`p-2 ${isDark ? 'bg-gray-700' : theme.lightBg} ${theme.text} rounded-lg`}><User size={20}/></div> Manage Access</h2>
               <form onSubmit={handleCreateUser} className="flex gap-3 mb-8">
-                <input type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="New username" className={`flex-1 border-2 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent ${cInput} font-medium transition-colors`} />
+                <input type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="New username" className={`flex-1 border-2 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent ${cInput} font-medium text-base transition-colors`} />
                 <button type="submit" className={`bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-all font-bold flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5`}><UserPlus size={18} /> Add</button>
               </form>
               <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
@@ -479,11 +490,11 @@ export default function Home() {
                 <h2 className={`text-xl font-extrabold ${cText} mb-6 flex items-center gap-3`}><div className={`p-2 ${isDark ? 'bg-gray-700' : theme.lightBg} ${theme.text} rounded-lg`}><Lock size={20}/></div> Security Controls</h2>
                 <div className="space-y-6">
                   <form onSubmit={handleUpdateGroupPass} className="flex flex-col sm:flex-row gap-3">
-                    <input type="password" value={newGroupPass} onChange={e => setNewGroupPass(e.target.value)} className={`flex-1 border-2 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent ${cInput} font-medium`} placeholder="New Group Password" />
+                    <input type="password" value={newGroupPass} onChange={e => setNewGroupPass(e.target.value)} className={`flex-1 border-2 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent ${cInput} font-medium text-base`} placeholder="New Group Password" />
                     <button type="submit" className={`${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${cText} font-bold px-6 py-3 rounded-xl transition-colors`}>Update</button>
                   </form>
                   <form onSubmit={handleUpdateAdminPass} className="flex flex-col sm:flex-row gap-3">
-                    <input type="password" value={newAdminPass} onChange={e => setNewAdminPass(e.target.value)} className={`flex-1 border-2 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent ${cInput} font-medium`} placeholder="New Admin Password" />
+                    <input type="password" value={newAdminPass} onChange={e => setNewAdminPass(e.target.value)} className={`flex-1 border-2 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent ${cInput} font-medium text-base`} placeholder="New Admin Password" />
                     <button type="submit" className={`${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${cText} font-bold px-6 py-3 rounded-xl transition-colors`}>Update</button>
                   </form>
                 </div>
@@ -494,7 +505,7 @@ export default function Home() {
                 <form onSubmit={handleUpdateSettings} className="mb-6">
                   <label className={`block text-sm font-bold ${cText} mb-2 flex items-center gap-2`}><LinkIcon size={16}/> Emergency Redirect Link</label>
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <input type="url" value={newEmergencyLink} onChange={e => setNewEmergencyLink(e.target.value)} className={`flex-1 border-2 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent ${cInput} font-medium`} placeholder="https://..." />
+                    <input type="url" value={newEmergencyLink} onChange={e => setNewEmergencyLink(e.target.value)} className={`flex-1 border-2 rounded-xl px-4 py-3 outline-none ${theme.ring} focus:border-transparent ${cInput} font-medium text-base`} placeholder="https://..." />
                     <button type="submit" className={`${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${cText} font-bold px-6 py-3 rounded-xl transition-colors`}>Save</button>
                   </div>
                 </form>
@@ -523,7 +534,7 @@ export default function Home() {
         {/* Global Background Layer */}
         <div className={`absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none ${isDark ? 'opacity-10' : 'opacity-100'} z-0`}></div>
 
-        <header className={`${cHeader} backdrop-blur-xl shadow-sm px-4 sm:px-6 py-4 flex items-center justify-between border-b z-20 sticky top-0`}>
+        <header className={`${cHeader} backdrop-blur-xl shadow-sm px-4 sm:px-6 header-safe pb-4 flex items-center justify-between border-b z-20 sticky top-0`}>
            <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
              <button onClick={() => {
                if (channelRef.current) supabase.removeChannel(channelRef.current);
@@ -632,7 +643,7 @@ export default function Home() {
            </div>
         </main>
 
-        <footer className={`${cHeader} backdrop-blur-xl border-t p-2 sm:p-3 sticky bottom-0 z-20 shrink-0`}>
+        <footer className={`${cHeader} backdrop-blur-xl border-t px-2 sm:px-3 pt-2 sm:pt-3 footer-safe sticky bottom-0 z-20 shrink-0`}>
            <div className="max-w-4xl mx-auto w-full relative flex flex-col gap-0.5 sm:gap-1">
              
              {/* Typing Indicator Container (fixed height to prevent jump) */}
@@ -659,7 +670,7 @@ export default function Home() {
                  <input 
                    type="text" 
                    placeholder={editingMsgId ? "Edit your message..." : "Type your message..."}
-                   className={`flex-1 min-w-0 bg-transparent px-3 sm:px-5 py-2 sm:py-3 outline-none ${cText} font-medium text-sm sm:text-base`}
+                   className={`flex-1 min-w-0 bg-transparent px-3 sm:px-5 py-2 sm:py-3 outline-none ${cText} font-medium text-base`}
                    value={messageInput}
                    onChange={handleTyping}
                  />

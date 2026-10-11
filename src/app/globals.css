@@ -10,9 +10,43 @@
   color-scheme: light dark;
 }
 
+html {
+  background-color: #f9fafb;
+  overscroll-behavior-y: none;
+}
+
+html.dark {
+  background-color: #111827;
+}
+
 body {
   margin: 0;
   padding: 0;
+  background-color: inherit;
+  overscroll-behavior-y: none;
+}
+
+/* iOS Safe Area Helpers */
+.header-safe {
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+}
+
+.footer-safe {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.screen-safe {
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Prevent iOS Safari auto-zoom on input focus */
+@media screen and (max-width: 768px) {
+  input:not(.text-2xl):not(.text-3xl):not(.text-xl),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Custom Scrollbar */
