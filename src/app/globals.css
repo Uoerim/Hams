@@ -49,6 +49,19 @@ body {
   }
 }
 
+/* Disable default iOS text callout & system magnifier on hold for message bubbles */
+.msg-bubble {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+@media (min-width: 640px) {
+  .msg-bubble {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

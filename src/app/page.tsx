@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/utils/supabase";
-import { Lock, User, UserPlus, Trash2, Settings, MessageSquare, ArrowLeft, Send, AlertCircle, Palette, Link as LinkIcon, AlertTriangle, Edit2, Eye, Clock, Moon, Sun, Monitor, History } from "lucide-react";
+import { Lock, User, UserPlus, Trash2, Settings, MessageSquare, ArrowLeft, Send, AlertCircle, Palette, Link as LinkIcon, AlertTriangle, Edit2, Eye, Clock, Moon, Sun, Monitor, History, Copy } from "lucide-react";
 import { getSettings, setupApp, verifyAdmin, verifyGroup, getUsers, createUser, deleteUser, changeGroupPassword, changeAdminPassword, updateAppSettings, emptyChat, editMessage, deleteMessage, markAsRead } from "./actions";
 
 type DBUser = { id: string; username: string; role: string; created_at: string; last_login: string; last_seen_at: string; last_device: string };
@@ -49,6 +49,98 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<any>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Context Menu State for Right-Click (laptop) and Hold (phone)
+  const [activeMenu, setActiveMenu] = useState<{ message: Message; x: number; y: number } | null>(null);
+  const [copiedToast, setCopiedToast] = useState(false);
+  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isLongPressRef = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActiveMenu(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleContextMenu = (msg: Message, e: React.MouseEvent) => {
+    if (msg.is_deleted) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setActiveMenu({ message: msg, x: e.clientX, y: e.clientY });
+  };
+
+  const handleTouchStart = (msg: Message, e: React.TouchEvent) => {
+    if (msg.is_deleted) return;
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+    isLongPressRef.current = false;
+
+    if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
+    longPressTimeoutRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(40); } catch (_) {}
+      }
+      setActiveMenu({ message: msg, x: touch.clientX, y: touch.clientY });
+    }, 450);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPosRef.current || !longPressTimeoutRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (dx > 10 || dy > 10) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+    if (isLongPressRef.current) {
+      setTimeout(() => {
+        isLongPressRef.current = false;
+      }, 200);
+    }
+  };
+
+  const handleCopyMessage = (text: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedToast(true);
+      setTimeout(() => setCopiedToast(false), 2000);
+    }
+    setActiveMenu(null);
+  };
+
+  const getMenuPosition = (x: number, y: number) => {
+    const menuWidth = 180;
+    const menuHeight = 150;
+    const winW = typeof window !== 'undefined' ? window.innerWidth : 800;
+    const winH = typeof window !== 'undefined' ? window.innerHeight : 600;
+
+    let posX = x;
+    let posY = y;
+
+    if (posX + menuWidth > winW - 16) {
+      posX = Math.max(16, winW - menuWidth - 16);
+    }
+    if (posX < 16) posX = 16;
+
+    if (posY + menuHeight > winH - 24) {
+      posY = Math.max(16, winH - menuHeight - 24);
+    }
+    if (posY < 16) posY = 16;
+
+    return { x: posX, y: posY };
+  };
 
   const theme = THEMES[settings.primary_color] || THEMES.indigo;
   const isDark = settings.is_dark_mode;
@@ -600,14 +692,22 @@ export default function Home() {
                     </div>
                     
                     <div className={`flex items-center gap-1 w-full ${isMe ? "justify-end" : "justify-start"}`}>
-                      {canDelete && !msg.is_deleted && (
-                        <div className={`opacity-100 lg:opacity-0 lg:group-hover/msg:opacity-100 flex shrink-0 items-center gap-1 transition-opacity ${isMe ? "mr-1" : "ml-1 order-last"}`}>
-                          {isMe && <button onClick={() => handleEditInit(msg)} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-full transition-colors"><Edit2 size={14}/></button>}
-                          <button onClick={() => handleDeleteMsg(msg.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors"><Trash2 size={14}/></button>
-                        </div>
-                      )}
-                      
-                      <div className={`px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl sm:rounded-3xl max-w-[85%] sm:max-w-[75%] lg:max-w-[65%] break-words shadow-sm text-[15px] leading-relaxed relative ${msg.is_deleted ? (isDark ? 'bg-gray-800 border-gray-700 text-gray-500' : 'bg-gray-100 border-gray-200 text-gray-400') + ' italic rounded-tr-sm' : (isMe ? theme.bg + " text-white rounded-tr-sm" : cBubbleOther + " rounded-tl-sm")}`}>
+                      <div 
+                        onContextMenu={(e) => handleContextMenu(msg, e)}
+                        onTouchStart={(e) => handleTouchStart(msg, e)}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        onTouchCancel={handleTouchEnd}
+                        onClick={(e) => {
+                          if (isLongPressRef.current) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
+                        className={`msg-bubble cursor-pointer select-none sm:select-text px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl sm:rounded-3xl max-w-[85%] sm:max-w-[75%] lg:max-w-[65%] break-words shadow-sm text-[15px] leading-relaxed relative transition-all duration-200 ${
+                          activeMenu?.message.id === msg.id ? 'ring-2 ring-indigo-500 scale-[1.01] shadow-lg' : ''
+                        } ${msg.is_deleted ? (isDark ? 'bg-gray-800 border-gray-700 text-gray-500' : 'bg-gray-100 border-gray-200 text-gray-400') + ' italic rounded-tr-sm' : (isMe ? theme.bg + " text-white rounded-tr-sm" : cBubbleOther + " rounded-tl-sm")}`}
+                      >
                         {msg.text}
                         {msg.is_edited && !msg.is_deleted && (
                           <span 
@@ -684,6 +784,83 @@ export default function Home() {
              </div>
            </div>
         </footer>
+
+        {/* WhatsApp-style Context Menu for Right-Click (laptop) & Hold (phone) */}
+        {activeMenu && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/25 backdrop-blur-[1px] animate-in fade-in duration-150"
+            onClick={() => setActiveMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setActiveMenu(null); }}
+          >
+            {(() => {
+              const pos = getMenuPosition(activeMenu.x, activeMenu.y);
+              const isMsgSender = activeMenu.message.user_id === selectedUser?.id;
+              const canDeleteMsg = isMsgSender || isAdmin;
+
+              return (
+                <div
+                  style={{
+                    top: `${pos.y}px`,
+                    left: `${pos.x}px`,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`fixed ${isDark ? 'bg-gray-800/95 border-gray-700 text-gray-100 shadow-black/60' : 'bg-white/95 border-gray-200 text-gray-800 shadow-xl'} backdrop-blur-xl border rounded-2xl shadow-2xl p-1.5 min-w-[175px] z-50 flex flex-col gap-0.5 animate-in zoom-in-95 duration-150 select-none`}
+                >
+                  {/* Copy Button */}
+                  <button
+                    onClick={() => handleCopyMessage(activeMenu.message.text)}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
+                      isDark ? 'hover:bg-gray-700/80 text-gray-200' : 'hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    <Copy size={16} className="text-gray-400" />
+                    <span>Copy</span>
+                  </button>
+
+                  {/* Edit Button (if sender and not deleted) */}
+                  {isMsgSender && !activeMenu.message.is_deleted && (
+                    <button
+                      onClick={() => {
+                        handleEditInit(activeMenu.message);
+                        setActiveMenu(null);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
+                        isDark ? 'hover:bg-gray-700/80 text-blue-400' : 'hover:bg-blue-50 text-blue-600'
+                      }`}
+                    >
+                      <Edit2 size={16} />
+                      <span>Edit</span>
+                    </button>
+                  )}
+
+                  {/* Delete Button (if sender or admin, and not deleted) */}
+                  {canDeleteMsg && !activeMenu.message.is_deleted && (
+                    <button
+                      onClick={() => {
+                        handleDeleteMsg(activeMenu.message.id);
+                        setActiveMenu(null);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
+                        isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-600'
+                      }`}
+                    >
+                      <Trash2 size={16} />
+                      <span>Delete</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Copied Toast Feedback */}
+        {copiedToast && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-gray-900/90 dark:bg-white/90 text-white dark:text-gray-900 px-4 py-2 rounded-full text-xs font-bold shadow-lg backdrop-blur-md animate-in fade-in zoom-in duration-150 flex items-center gap-2 pointer-events-none">
+            <Copy size={13} />
+            <span>Copied to clipboard</span>
+          </div>
+        )}
       </div>
     );
   }
