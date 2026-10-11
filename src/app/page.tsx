@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/utils/supabase";
-import { Lock, User, UserPlus, Trash2, Settings, MessageSquare, ArrowLeft, Send, AlertCircle, Palette, Link as LinkIcon, AlertTriangle, Edit2, Eye, Clock, Moon, Sun, Monitor, History, Copy } from "lucide-react";
+import { Lock, User, UserPlus, Trash2, Settings, MessageSquare, ArrowLeft, Send, AlertCircle, Palette, Link as LinkIcon, AlertTriangle, Edit2, Eye, Clock, Moon, Sun, Monitor, History, Copy, Reply, X } from "lucide-react";
 import { getSettings, setupApp, verifyAdmin, verifyGroup, getUsers, createUser, deleteUser, changeGroupPassword, changeAdminPassword, updateAppSettings, emptyChat, editMessage, deleteMessage, markAsRead } from "./actions";
 
 type DBUser = { id: string; username: string; role: string; created_at: string; last_login: string; last_seen_at: string; last_device: string };
 type EditHistory = { text: string; edited_at: string };
-type Message = { id: string; user_id: string; text: string; created_at: string; is_edited: boolean; is_deleted: boolean; edit_history: EditHistory[]; users?: { username: string } };
+type ReplyTo = { id: string; username: string; text: string };
+type Message = { id: string; user_id: string; text: string; created_at: string; is_edited: boolean; is_deleted: boolean; edit_history: EditHistory[]; reply_to?: ReplyTo | null; users?: { username: string } };
 
 const THEMES: Record<string, { bg: string, text: string, hover: string, ring: string, lightBg: string, from: string, to: string, border: string }> = {
   indigo: { bg: 'bg-indigo-600', text: 'text-indigo-600', hover: 'hover:bg-indigo-700', ring: 'focus:ring-indigo-500', lightBg: 'bg-indigo-50', from: 'from-indigo-500', to: 'to-purple-600', border: 'hover:border-indigo-200' },
@@ -39,8 +40,10 @@ export default function Home() {
   const [newEmergencyLink, setNewEmergencyLink] = useState("");
   const [messageInput, setMessageInput] = useState("");
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [expandedHistoryMsgId, setExpandedHistoryMsgId] = useState<string | null>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
@@ -342,16 +345,36 @@ export default function Home() {
       return;
     }
 
+    const replyData = replyingTo ? {
+      id: replyingTo.id,
+      username: replyingTo.users?.username || (replyingTo.user_id === selectedUser.id ? selectedUser.username : 'User'),
+      text: replyingTo.text
+    } : null;
+
     const tempId = crypto.randomUUID();
-    const newMsg: Message = { id: tempId, user_id: selectedUser.id, text, created_at: new Date().toISOString(), is_edited: false, is_deleted: false, edit_history: [], users: { username: selectedUser.username } };
+    const newMsg: Message = { id: tempId, user_id: selectedUser.id, text, created_at: new Date().toISOString(), is_edited: false, is_deleted: false, edit_history: [], reply_to: replyData, users: { username: selectedUser.username } };
     setMessages(prev => [...prev, newMsg]);
-    await supabase.from('messages').insert({ id: tempId, user_id: selectedUser.id, text });
+    setReplyingTo(null);
+    await supabase.from('messages').insert({ id: tempId, user_id: selectedUser.id, text, reply_to: replyData });
   };
 
   const handleEditInit = (msg: Message) => {
     if (msg.is_deleted) return;
+    setReplyingTo(null);
     setEditingMsgId(msg.id);
     setMessageInput(msg.text);
+    setTimeout(() => {
+      messageInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleReplyInit = (msg: Message) => {
+    if (msg.is_deleted) return;
+    setEditingMsgId(null);
+    setReplyingTo(msg);
+    setTimeout(() => {
+      messageInputRef.current?.focus();
+    }, 50);
   };
 
   const handleDeleteMsg = async (msgId: string) => {
@@ -686,7 +709,7 @@ export default function Home() {
                const readers = users.filter(u => u.id !== msg.user_id && new Date(u.last_seen_at) >= new Date(msg.created_at));
                
                return (
-                 <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} group/msg w-full`}>
+                 <div key={msg.id} id={`msg-${msg.id}`} className={`flex flex-col ${isMe ? "items-end" : "items-start"} group/msg w-full transition-all duration-300 rounded-3xl p-0.5`}>
                     <div className={`text-[11px] uppercase tracking-wider ${cTextMuted} mb-1 ml-2 font-bold flex items-center gap-2`}>
                       {isMe ? "You" : msg.users?.username} <span className="text-[9px] font-medium opacity-60">{formatTime(msg.created_at)}</span>
                     </div>
@@ -708,6 +731,35 @@ export default function Home() {
                           activeMenu?.message.id === msg.id ? 'ring-2 ring-indigo-500 scale-[1.01] shadow-lg' : ''
                         } ${msg.is_deleted ? (isDark ? 'bg-gray-800 border-gray-700 text-gray-500' : 'bg-gray-100 border-gray-200 text-gray-400') + ' italic rounded-tr-sm' : (isMe ? theme.bg + " text-white rounded-tr-sm" : cBubbleOther + " rounded-tl-sm")}`}
                       >
+                        {/* WhatsApp-style Quoted Reply Block */}
+                        {msg.reply_to && !msg.is_deleted && (
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const targetEl = document.getElementById(`msg-${msg.reply_to!.id}`);
+                              if (targetEl) {
+                                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                targetEl.classList.add('ring-4', 'ring-indigo-400', 'bg-indigo-500/10');
+                                setTimeout(() => targetEl.classList.remove('ring-4', 'ring-indigo-400', 'bg-indigo-500/10'), 1600);
+                              }
+                            }}
+                            className={`mb-2 px-3 py-2 rounded-xl border-l-4 cursor-pointer text-left transition-all hover:opacity-90 ${
+                              isMe 
+                                ? 'bg-black/20 border-white/90 text-white' 
+                                : isDark 
+                                  ? 'bg-black/35 border-indigo-400 text-gray-200' 
+                                  : 'bg-black/5 border-indigo-600 text-gray-800'
+                            }`}
+                          >
+                            <div className={`text-[11px] font-extrabold flex items-center gap-1.5 ${isMe ? 'text-white' : theme.text}`}>
+                              <Reply size={11} className="rotate-180 shrink-0" />
+                              <span className="truncate">{msg.reply_to.username}</span>
+                            </div>
+                            <div className={`text-xs truncate mt-0.5 ${isMe ? 'text-white/80' : isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {msg.reply_to.text}
+                            </div>
+                          </div>
+                        )}
                         {msg.text}
                         {msg.is_edited && !msg.is_deleted && (
                           <span 
@@ -766,21 +818,49 @@ export default function Home() {
                  <AlertTriangle size={20} />
                </button>
 
-               <form onSubmit={sendMessage} className={`w-full flex items-center gap-1 sm:gap-2 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'} p-1.5 rounded-[2rem] border-2 ${editingMsgId ? 'border-yellow-500 bg-yellow-500/10' : ''} focus-within:${theme.ring} focus-within:ring-2 focus-within:border-transparent transition-all`}>
-                 <input 
-                   type="text" 
-                   placeholder={editingMsgId ? "Edit your message..." : "Type your message..."}
-                   className={`flex-1 min-w-0 bg-transparent px-3 sm:px-5 py-2 sm:py-3 outline-none ${cText} font-medium text-base`}
-                   value={messageInput}
-                   onChange={handleTyping}
-                 />
-                 {editingMsgId && (
-                   <button type="button" onClick={() => { setEditingMsgId(null); setMessageInput(""); }} className={`${cTextMuted} hover:${cText} px-2 font-bold text-sm shrink-0`}>Cancel</button>
+               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                 {/* WhatsApp-style Reply Preview Bar */}
+                 {replyingTo && (
+                   <div className={`flex items-center justify-between px-3.5 py-1.5 rounded-2xl ${isDark ? 'bg-gray-800/95 border border-gray-700' : 'bg-gray-100 border border-gray-200'} shadow-sm animate-in slide-in-from-bottom-2 fade-in duration-150`}>
+                     <div className="flex items-center gap-2.5 overflow-hidden">
+                       <div className={`w-1 h-7 rounded-full ${theme.bg} shrink-0`} />
+                       <div className="min-w-0">
+                         <div className={`text-xs font-bold ${theme.text} flex items-center gap-1`}>
+                           <Reply size={12} className="rotate-180" />
+                           <span className="truncate">Replying to {replyingTo.users?.username || (replyingTo.user_id === selectedUser?.id ? 'Yourself' : 'User')}</span>
+                         </div>
+                         <p className={`text-[11px] ${cTextMuted} truncate max-w-[240px] sm:max-w-md`}>
+                           {replyingTo.text}
+                         </p>
+                       </div>
+                     </div>
+                     <button 
+                       type="button" 
+                       onClick={() => setReplyingTo(null)}
+                       className="p-1 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ml-2 shrink-0"
+                     >
+                       <X size={15} />
+                     </button>
+                   </div>
                  )}
-                 <button type="submit" disabled={!messageInput.trim()} className={`${editingMsgId ? 'bg-yellow-500 hover:bg-yellow-600' : theme.bg + ' ' + theme.hover} disabled:opacity-50 disabled:scale-100 text-white w-10 h-10 sm:w-12 sm:h-12 rounded-full transition-all shadow-md transform hover:scale-105 flex items-center justify-center flex-shrink-0 mr-0.5`}>
-                   <Send size={18} />
-                 </button>
-               </form>
+
+                 <form onSubmit={sendMessage} className={`w-full flex items-center gap-1 sm:gap-2 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'} p-1.5 rounded-[2rem] border-2 ${editingMsgId ? 'border-yellow-500 bg-yellow-500/10' : ''} focus-within:${theme.ring} focus-within:ring-2 focus-within:border-transparent transition-all`}>
+                   <input 
+                     ref={messageInputRef}
+                     type="text" 
+                     placeholder={editingMsgId ? "Edit your message..." : (replyingTo ? `Replying to ${replyingTo.users?.username || 'message'}...` : "Type your message...")}
+                     className={`flex-1 min-w-0 bg-transparent px-3 sm:px-5 py-2 sm:py-3 outline-none ${cText} font-medium text-base`}
+                     value={messageInput}
+                     onChange={handleTyping}
+                   />
+                   {editingMsgId && (
+                     <button type="button" onClick={() => { setEditingMsgId(null); setMessageInput(""); }} className={`${cTextMuted} hover:${cText} px-2 font-bold text-sm shrink-0`}>Cancel</button>
+                   )}
+                   <button type="submit" disabled={!messageInput.trim()} className={`${editingMsgId ? 'bg-yellow-500 hover:bg-yellow-600' : theme.bg + ' ' + theme.hover} disabled:opacity-50 disabled:scale-100 text-white w-10 h-10 sm:w-12 sm:h-12 rounded-full transition-all shadow-md transform hover:scale-105 flex items-center justify-center flex-shrink-0 mr-0.5`}>
+                     <Send size={18} />
+                   </button>
+                 </form>
+               </div>
              </div>
            </div>
         </footer>
@@ -788,14 +868,14 @@ export default function Home() {
         {/* WhatsApp-style Context Menu for Right-Click (laptop) & Hold (phone) */}
         {activeMenu && (
           <div 
-            className="fixed inset-0 z-50 bg-black/25 backdrop-blur-[1px] animate-in fade-in duration-150"
+            className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[2px] animate-backdrop"
             onClick={() => setActiveMenu(null)}
             onContextMenu={(e) => { e.preventDefault(); setActiveMenu(null); }}
           >
             {(() => {
               const pos = getMenuPosition(activeMenu.x, activeMenu.y);
-              const isMsgSender = activeMenu.message.user_id === selectedUser?.id;
-              const canDeleteMsg = isMsgSender || isAdmin;
+              const isMsgSender = activeMenu.message.user_id === selectedUser?.id || activeMenu.message.users?.username === selectedUser?.username;
+              const canEditMsg = isMsgSender || isAdmin;
 
               return (
                 <div
@@ -804,9 +884,25 @@ export default function Home() {
                     left: `${pos.x}px`,
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className={`fixed ${isDark ? 'bg-gray-800/95 border-gray-700 text-gray-100 shadow-black/60' : 'bg-white/95 border-gray-200 text-gray-800 shadow-xl'} backdrop-blur-xl border rounded-2xl shadow-2xl p-1.5 min-w-[175px] z-50 flex flex-col gap-0.5 animate-in zoom-in-95 duration-150 select-none`}
+                  className={`fixed ${isDark ? 'bg-gray-800/95 border-gray-700 text-gray-100 shadow-black/80' : 'bg-white/95 border-gray-200 text-gray-800 shadow-2xl'} backdrop-blur-2xl border rounded-2xl p-1.5 min-w-[185px] z-50 flex flex-col gap-0.5 animate-menu-open select-none`}
                 >
-                  {/* Copy Button */}
+                  {/* 1. Reply Button */}
+                  {!activeMenu.message.is_deleted && (
+                    <button
+                      onClick={() => {
+                        handleReplyInit(activeMenu.message);
+                        setActiveMenu(null);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
+                        isDark ? 'hover:bg-gray-700/80 text-emerald-400' : 'hover:bg-emerald-50 text-emerald-600'
+                      }`}
+                    >
+                      <Reply size={16} className="rotate-180" />
+                      <span>Reply</span>
+                    </button>
+                  )}
+
+                  {/* 2. Copy Button */}
                   <button
                     onClick={() => handleCopyMessage(activeMenu.message.text)}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
@@ -817,8 +913,8 @@ export default function Home() {
                     <span>Copy</span>
                   </button>
 
-                  {/* Edit Button (if sender and not deleted) */}
-                  {isMsgSender && !activeMenu.message.is_deleted && (
+                  {/* 3. Edit Button */}
+                  {!activeMenu.message.is_deleted && canEditMsg && (
                     <button
                       onClick={() => {
                         handleEditInit(activeMenu.message);
@@ -833,8 +929,8 @@ export default function Home() {
                     </button>
                   )}
 
-                  {/* Delete Button (if sender or admin, and not deleted) */}
-                  {canDeleteMsg && !activeMenu.message.is_deleted && (
+                  {/* 4. Delete Button */}
+                  {!activeMenu.message.is_deleted && (
                     <button
                       onClick={() => {
                         handleDeleteMsg(activeMenu.message.id);
