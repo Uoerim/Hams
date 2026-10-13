@@ -1,0 +1,59 @@
+# Hams Software License
+### Non-Commercial, Share-Alike, and Restricted Contribution License (v1.0)
+
+Copyright (c) 2026 Uoerim (Yosuf) <yosufmaib@gmail.com>. All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use, copy, run, study, and modify the Software, subject to the conditions, limitations, and restrictions set forth below:
+
+---
+
+### 1. Non-Commercial Use Only
+The Software may only be used for personal, educational, non-commercial, and evaluation purposes. 
+
+**STRICT PROHIBITION:** You may NOT sell, resell, lease, sublicense, commercialize, charge fees for, monetize, or use the Software (or any portion, modification, or derivative work thereof) in connection with any commercial endeavor, business operations, paid service, hosted Software-as-a-Service (SaaS), advertising-supported platform, or revenue-generating activity without prior express written permission and a separate commercial license agreement executed with the Copyright Holder.
+
+---
+
+### 2. Mandatory Share-Alike / Open Source for Modifications
+If you modify, alter, adapt, translate, enhance, or create derivative works based upon the Software ("Modified Works"), you are required to comply with the following share-alike conditions:
+
+- **Public Availability:** If you distribute, convey, host, deploy, or make the Modified Works available to any third party or end users (via network access, download, or otherwise), you **MUST** release and publish the complete, readable source code of the Modified Works publicly at no charge.
+- **Identical Terms:** Any distribution or deployment of Modified Works must be licensed under the exact terms of this License (or a compatible license explicitly authorized in writing by the Copyright Holder).
+- **Modification Notice:** You must include prominent notices in all modified files stating that you modified the code and indicating the date of modification.
+- **Attribution:** All original copyright notices, license texts, and author attributions must remain intact and prominently displayed in all copies and derivative works.
+
+---
+
+### 3. Contribution Restrictions (No Unauthorized Contributions)
+You may NOT contribute directly to the official Software repository, its upstream development branches, or associated official project distributions without prior express written permission from the Copyright Holder.
+
+- Pull requests, patches, feature submissions, and code contributions will only be accepted and merged if the contributor has received explicit written authorization from the Copyright Holder.
+- Any contribution submitted and accepted pursuant to written authorization shall, unless otherwise mutually agreed upon in writing, be subject to this License and the intellectual property terms designated by the Copyright Holder.
+
+---
+
+### 4. Preservation of Notices
+All copies or substantial portions of the Software, whether original or modified, must include the above copyright notice and this permission and restriction notice in its entirety.
+
+---
+
+### 5. No Trademark or Endorsement Rights
+This License does not grant you any rights to use any trade names, trademarks, service marks, logos, or product names of the Copyright Holder, nor may you use the name of the Copyright Holder to endorse or promote products derived from this Software without prior express written permission.
+
+---
+
+### 6. Disclaimer of Warranty
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+### 7. Limitation of Liability
+UNDER NO CIRCUMSTANCES SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+---
+
+### Inquiries & Permissions
+For commercial licensing, permission to contribute, or inquiries regarding exceptions to this License, please contact:
+- **Project Maintainer:** Uoerim (Yosuf)
+- **Email:** `yosufmaib@gmail.com`
+- **GitHub Repository:** [https://github.com/Uoerim/Hams](https://github.com/Uoerim/Hams)
